@@ -1,0 +1,11 @@
+{
+  "name": "poacaps-landing-page",
+  "version": "1.0.0",
+  "description": "POA Caps - Landing Page Premium",
+  "scripts": {
+    "start": "npx serve . -p $PORT"
+  },
+  "dependencies": {
+    "serve": "^14.2.1"
+  }
+}
