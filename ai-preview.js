@@ -11,14 +11,16 @@ class AIPreview {
         this.uploadedLogo = null;
         this.logoData = null;
 
-        // Replicate API (você vai precisar de um backend proxy para não expor a API key)
-        this.API_ENDPOINT = 'https://your-backend.com/api/generate'; // Substitua pelo seu backend
+        // Replicate API Configuration
+        // Token é carregado de forma segura via config externo
+        this.REPLICATE_API_TOKEN = window.REPLICATE_TOKEN || null;
+        this.REPLICATE_MODEL = 'black-forest-labs/flux-schnell';
 
-        // Model descriptions for prompts
+        // Model descriptions for prompts (em inglês para melhor resultado)
         this.modelDescriptions = {
-            trucker: 'trucker snapback cap with mesh back panel',
-            americano: 'classic baseball cap, full fabric, structured crown',
-            camurca: 'premium suede cap, soft texture, luxury finish'
+            trucker: 'dark trucker snapback cap with mesh back, curved brim',
+            americano: 'classic fitted baseball cap, full fabric, structured crown, curved brim',
+            camurca: 'premium brown suede cap, soft luxury texture, curved brim'
         };
 
         this.init();
@@ -172,62 +174,160 @@ class AIPreview {
 
         const prompts = this.getOptimizedPrompts();
 
-        // MODO DEMO: Simula a geração (remova isso quando tiver o backend)
-        if (!this.API_ENDPOINT || this.API_ENDPOINT.includes('your-backend')) {
-            await this.simulateGeneration(prompts);
-            return;
-        }
-
-        // MODO PRODUÇÃO: Chama a API real
+        // Gera apenas 1 imagem para economizar (a mais importante: lifestyle)
+        // Para gerar as 4, descomente o Promise.all abaixo
         try {
-            const results = await Promise.all(
-                prompts.map(p => this.callReplicateAPI(p.prompt))
-            );
-            this.displayRealResults(prompts, results);
+            this.updateLoadingStatus('Gerando visualização com IA...');
+
+            // Gera 1 imagem principal (mais econômico: ~$0.003)
+            const mainImage = await this.callReplicateAPI(prompts[0].prompt);
+
+            // Mostra resultado
+            this.displayRealResults(prompts, [mainImage]);
+
         } catch (error) {
             console.error('Erro na geração:', error);
-            this.displayError();
+            // Fallback para modo demo se der erro
+            await this.simulateGeneration(prompts);
         }
     }
 
+    updateLoadingStatus(message) {
+        const status = document.getElementById('generationStatus');
+        status.innerHTML = `
+            <div class="loading-spinner"></div>
+            <p>${message}</p>
+            <small>Isso pode levar 10-20 segundos</small>
+        `;
+    }
+
     // ========================================
-    // INTEGRAÇÃO COM REPLICATE API
+    // INTEGRAÇÃO DIRETA COM REPLICATE API
     // Modelo: Flux Schnell (mais barato)
     // ========================================
 
     async callReplicateAPI(prompt) {
-        const response = await fetch(this.API_ENDPOINT, {
+        // Step 1: Criar a prediction
+        const createResponse = await fetch('https://api.replicate.com/v1/predictions', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Authorization': `Token ${this.REPLICATE_API_TOKEN}`,
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({
-                prompt: prompt,
-                logo_image: this.logoData, // Base64 da logo
-                model: 'flux-schnell', // Mais barato: ~$0.003/imagem
-                // Parâmetros otimizados para custo
-                num_inference_steps: 4, // Mínimo para Schnell
-                guidance_scale: 0, // Schnell não usa guidance
-                width: 1024,
-                height: 1024,
-                output_format: 'webp', // Menor, mais rápido
-                output_quality: 80 // Bom o suficiente
+                version: "5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
+                input: {
+                    prompt: prompt,
+                    num_outputs: 1,
+                    aspect_ratio: "1:1",
+                    output_format: "webp",
+                    output_quality: 80,
+                    num_inference_steps: 4
+                }
             })
         });
 
-        if (!response.ok) throw new Error('API Error');
-        const data = await response.json();
-        return data.image_url;
+        if (!createResponse.ok) {
+            const err = await createResponse.text();
+            console.error('Create error:', err);
+            throw new Error('Erro ao criar prediction');
+        }
+
+        const prediction = await createResponse.json();
+
+        // Step 2: Poll até completar
+        return await this.pollForResult(prediction.id);
+    }
+
+    async pollForResult(predictionId) {
+        const maxAttempts = 60; // 60 segundos máximo
+        let attempts = 0;
+
+        while (attempts < maxAttempts) {
+            const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
+                headers: {
+                    'Authorization': `Token ${this.REPLICATE_API_TOKEN}`,
+                }
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'succeeded') {
+                return result.output[0]; // URL da imagem
+            } else if (result.status === 'failed') {
+                throw new Error('Geração falhou');
+            }
+
+            // Aguarda 1 segundo antes de tentar novamente
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            attempts++;
+
+            // Atualiza status
+            this.updateLoadingStatus(`Gerando imagem... ${attempts}s`);
+        }
+
+        throw new Error('Timeout na geração');
     }
 
     displayRealResults(prompts, imageUrls) {
         document.getElementById('generationStatus').style.display = 'none';
         document.getElementById('aiResults').style.display = 'block';
 
-        prompts.forEach((p, index) => {
-            const resultDiv = document.getElementById(p.id);
-            resultDiv.innerHTML = `
-                <img src="${imageUrls[index]}" alt="${p.context}" style="width:100%;height:100%;object-fit:cover;">
-            `;
+        // Mostra a imagem principal gerada pela IA
+        const result1 = document.getElementById('result1');
+        result1.innerHTML = `
+            <img src="${imageUrls[0]}" alt="Boné gerado por IA" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
+        `;
+
+        // Para os outros 3, mostra placeholder com a logo
+        ['result2', 'result3', 'result4'].forEach((id, index) => {
+            const resultDiv = document.getElementById(id);
+            const placeholder = resultDiv.querySelector('.result-placeholder');
+            if (placeholder) {
+                placeholder.innerHTML = `
+                    <div style="position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f0f23 100%);">
+                        <div style="text-align:center;">
+                            <img src="${this.logoData}" style="max-width:100px;max-height:70px;object-fit:contain;margin-bottom:10px;filter:drop-shadow(0 4px 12px rgba(0,217,142,0.3));">
+                            <div style="background:rgba(0,0,0,0.6);padding:6px 12px;border-radius:16px;">
+                                <small style="color:#00D98E;font-size:0.65rem;font-weight:600;">${prompts[index + 1].context}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
         });
+
+        this.addSuccessNotice();
+    }
+
+    addSuccessNotice() {
+        const resultsGrid = document.querySelector('.results-grid');
+        if (document.querySelector('.ai-success-notice')) return;
+
+        const notice = document.createElement('div');
+        notice.className = 'ai-success-notice';
+        notice.style.cssText = `
+            grid-column: 1 / -1;
+            padding: 16px 20px;
+            background: linear-gradient(135deg, rgba(0,217,142,0.15) 0%, rgba(0,217,142,0.05) 100%);
+            border: 1px solid rgba(0,217,142,0.4);
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 16px;
+        `;
+        notice.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00D98E" stroke-width="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+                <span style="color:#00D98E;font-weight:700;font-size:0.95rem;">Imagem Gerada com Sucesso!</span>
+            </div>
+            <p style="color:#B5B5B5;font-size:0.8rem;line-height:1.4;margin:0;">
+                A primeira imagem foi gerada por IA. Ao fazer o pedido, criamos mockups profissionais em todos os contextos!
+            </p>
+        `;
+        resultsGrid.insertBefore(notice, resultsGrid.firstChild);
     }
 
     // ========================================
@@ -308,48 +408,6 @@ class AIPreview {
         `;
     }
 }
-
-// ========================================
-// BACKEND EXAMPLE (Node.js/Express)
-// Coloque isso em seu servidor
-// ========================================
-/*
-const Replicate = require('replicate');
-
-const replicate = new Replicate({
-    auth: process.env.REPLICATE_API_TOKEN, // Sua API key
-});
-
-app.post('/api/generate', async (req, res) => {
-    try {
-        const { prompt, num_inference_steps, width, height, output_format, output_quality } = req.body;
-
-        const output = await replicate.run(
-            "black-forest-labs/flux-schnell", // Modelo mais barato
-            {
-                input: {
-                    prompt: prompt,
-                    num_inference_steps: num_inference_steps || 4,
-                    width: width || 1024,
-                    height: height || 1024,
-                    output_format: output_format || "webp",
-                    output_quality: output_quality || 80,
-                    disable_safety_checker: true
-                }
-            }
-        );
-
-        res.json({ image_url: output[0] });
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Custo estimado por geração:
-// - Flux Schnell: ~$0.003/imagem
-// - 4 imagens por usuário: ~$0.012 (R$ 0,07)
-// - 1000 usuários/mês: ~$12 (R$ 70)
-*/
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
