@@ -133,32 +133,32 @@ class AIPreview {
     getOptimizedPrompts() {
         const cap = this.modelDescriptions[this.selectedModel];
 
-        // PROMPTS ULTRA-OTIMIZADOS (40-60 tokens cada)
-        // Técnica: Começar com o objeto principal, contexto mínimo, estilo no final
+        // PROMPTS OTIMIZADOS PARA FLUX REDUX
+        // O modelo vai usar a imagem de referência (logo) e incorporar no boné
         return [
             {
                 id: 'result1',
                 context: 'Uso Real',
-                // Prompt 1: Pessoa usando (lifestyle)
-                prompt: `${cap}, custom embroidered logo on front, worn by young professional, outdoor urban setting, natural daylight, lifestyle photography, shallow depth of field, 8k`
+                // Prompt 1: Pessoa usando com a logo visível
+                prompt: `${cap} with the provided logo embroidered on the front panel, worn by young professional man, outdoor urban setting, natural daylight, lifestyle photography, the logo must be clearly visible on the cap, shallow depth of field, professional photo, 8k quality`
             },
             {
                 id: 'result2',
                 context: 'Product Shot',
-                // Prompt 2: Produto em mesa (e-commerce)
-                prompt: `${cap}, embroidered logo centered, floating on clean white background, soft studio lighting, product photography, commercial catalog style, high detail, 8k`
+                // Prompt 2: Produto com logo centralizada
+                prompt: `${cap} with the provided logo embroidered centered on front, floating on clean white background, soft studio lighting, product photography, logo clearly visible, commercial catalog style, 8k`
             },
             {
                 id: 'result3',
                 context: 'Close-up',
-                // Prompt 3: Close-up do bordado (detalhe)
-                prompt: `${cap}, macro close-up of embroidered logo detail, stitching texture visible, dramatic side lighting, extreme detail, professional product photo, 8k`
+                // Prompt 3: Close-up mostrando a logo
+                prompt: `${cap}, close-up view of the front panel showing the provided logo embroidered, stitching texture visible, dramatic lighting, logo is the main focus, professional product photo, 8k`
             },
             {
                 id: 'result4',
                 context: 'Display',
-                // Prompt 4: Manequim/display (retail)
-                prompt: `${cap}, on mannequin head display, retail store setting, soft ambient lighting, merchandise presentation, clean background, commercial photography, 8k`
+                // Prompt 4: Display com logo
+                prompt: `${cap} with provided logo on front, on mannequin head display, retail store setting, logo clearly visible, soft ambient lighting, merchandise presentation, commercial photography, 8k`
             }
         ];
     }
@@ -207,13 +207,16 @@ class AIPreview {
     // ========================================
 
     async callReplicateAPI(prompt) {
-        // Step 1: Criar a prediction via nosso backend
+        // Step 1: Criar a prediction via nosso backend COM a logo
         const createResponse = await fetch('/api/generate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ prompt })
+            body: JSON.stringify({
+                prompt,
+                logoImage: this.logoData // Envia a logo em base64
+            })
         });
 
         if (!createResponse.ok) {
@@ -224,6 +227,11 @@ class AIPreview {
 
         const prediction = await createResponse.json();
         console.log('Prediction created:', prediction.id);
+
+        // Se já tiver output (modo wait), retorna direto
+        if (prediction.output && prediction.output[0]) {
+            return prediction.output[0];
+        }
 
         // Step 2: Poll até completar
         return await this.pollForResult(prediction.id);
