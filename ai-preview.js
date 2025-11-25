@@ -276,7 +276,7 @@ class AIPreview {
                         logoHeight = logoMaxHeight;
                     }
 
-                    // Posição: centro horizontal, 35% do topo (área da frente do boné)
+                    // Posição: centro horizontal, 30% do topo (área da frente do boné)
                     const logoX = (canvas.width - logoWidth) / 2;
                     const logoY = canvas.height * 0.30;
 
@@ -303,11 +303,13 @@ class AIPreview {
             };
 
             capImg.onerror = () => {
-                console.error('Failed to load cap image');
+                console.error('Failed to load cap image via proxy');
                 reject(new Error('Failed to load cap image'));
             };
 
-            capImg.src = capImageUrl;
+            // Usa proxy para evitar CORS
+            const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(capImageUrl)}`;
+            capImg.src = proxyUrl;
         });
     }
 
