@@ -133,32 +133,32 @@ class AIPreview {
     getOptimizedPrompts() {
         const cap = this.modelDescriptions[this.selectedModel];
 
-        // PROMPTS OTIMIZADOS PARA FLUX REDUX
-        // O modelo vai usar a imagem de referência (logo) e incorporar no boné
+        // PROMPTS OTIMIZADOS - Gera boné com área frontal visível para composição de logo
+        // A logo será adicionada via Canvas depois da geração
         return [
             {
                 id: 'result1',
                 context: 'Uso Real',
-                // Prompt 1: Pessoa usando com a logo visível
-                prompt: `${cap} with the provided logo embroidered on the front panel, worn by young professional man, outdoor urban setting, natural daylight, lifestyle photography, the logo must be clearly visible on the cap, shallow depth of field, professional photo, 8k quality`
+                // Prompt 1: Pessoa usando - frente do boné bem visível
+                prompt: `${cap}, plain solid color front panel without any logo or text, worn by young professional, front view showing the cap clearly, outdoor urban setting, natural daylight, lifestyle photography, 8k`
             },
             {
                 id: 'result2',
                 context: 'Product Shot',
-                // Prompt 2: Produto com logo centralizada
-                prompt: `${cap} with the provided logo embroidered centered on front, floating on clean white background, soft studio lighting, product photography, logo clearly visible, commercial catalog style, 8k`
+                // Prompt 2: Produto com frente visível
+                prompt: `${cap}, plain front panel no logo no text, front view, floating on clean white background, soft studio lighting, product photography, commercial catalog style, 8k`
             },
             {
                 id: 'result3',
                 context: 'Close-up',
-                // Prompt 3: Close-up mostrando a logo
-                prompt: `${cap}, close-up view of the front panel showing the provided logo embroidered, stitching texture visible, dramatic lighting, logo is the main focus, professional product photo, 8k`
+                // Prompt 3: Close-up da frente
+                prompt: `${cap}, close-up front view of plain front panel, no logo no text, dramatic side lighting, professional product photo, 8k`
             },
             {
                 id: 'result4',
                 context: 'Display',
-                // Prompt 4: Display com logo
-                prompt: `${cap} with provided logo on front, on mannequin head display, retail store setting, logo clearly visible, soft ambient lighting, merchandise presentation, commercial photography, 8k`
+                // Prompt 4: Manequim - frente visível
+                prompt: `${cap}, plain front panel without logo, on mannequin head display, front view, retail store setting, soft ambient lighting, commercial photography, 8k`
             }
         ];
     }
@@ -207,16 +207,13 @@ class AIPreview {
     // ========================================
 
     async callReplicateAPI(prompt) {
-        // Step 1: Criar a prediction via nosso backend COM a logo
+        // Step 1: Criar a prediction via nosso backend
         const createResponse = await fetch('/api/generate', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                prompt,
-                logoImage: this.logoData // Envia a logo em base64
-            })
+            body: JSON.stringify({ prompt })
         });
 
         if (!createResponse.ok) {
@@ -234,7 +231,84 @@ class AIPreview {
         }
 
         // Step 2: Poll até completar
-        return await this.pollForResult(prediction.id);
+        const capImageUrl = await this.pollForResult(prediction.id);
+
+        // Step 3: Compositar a logo em cima do boné
+        const finalImage = await this.compositeLogoOnCap(capImageUrl);
+        return finalImage;
+    }
+
+    // Composita a logo do usuário em cima do boné gerado
+    async compositeLogoOnCap(capImageUrl) {
+        return new Promise((resolve, reject) => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            const capImg = new Image();
+            capImg.crossOrigin = 'anonymous';
+
+            capImg.onload = () => {
+                // Configura canvas com tamanho da imagem do boné
+                canvas.width = capImg.width;
+                canvas.height = capImg.height;
+
+                // Desenha o boné
+                ctx.drawImage(capImg, 0, 0);
+
+                // Carrega a logo
+                const logoImg = new Image();
+                logoImg.onload = () => {
+                    // Calcula posição e tamanho da logo
+                    // Posiciona no centro-superior (frente do boné)
+                    const logoMaxWidth = canvas.width * 0.25; // 25% da largura
+                    const logoMaxHeight = canvas.height * 0.15; // 15% da altura
+
+                    let logoWidth = logoImg.width;
+                    let logoHeight = logoImg.height;
+
+                    // Redimensiona mantendo proporção
+                    if (logoWidth > logoMaxWidth) {
+                        logoHeight = (logoMaxWidth / logoWidth) * logoHeight;
+                        logoWidth = logoMaxWidth;
+                    }
+                    if (logoHeight > logoMaxHeight) {
+                        logoWidth = (logoMaxHeight / logoHeight) * logoWidth;
+                        logoHeight = logoMaxHeight;
+                    }
+
+                    // Posição: centro horizontal, 35% do topo (área da frente do boné)
+                    const logoX = (canvas.width - logoWidth) / 2;
+                    const logoY = canvas.height * 0.30;
+
+                    // Aplica leve sombra para realismo
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                    ctx.shadowBlur = 4;
+                    ctx.shadowOffsetX = 2;
+                    ctx.shadowOffsetY = 2;
+
+                    // Desenha a logo
+                    ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+
+                    // Retorna como data URL
+                    resolve(canvas.toDataURL('image/png'));
+                };
+
+                logoImg.onerror = () => {
+                    console.error('Failed to load logo');
+                    // Se falhar, retorna só o boné
+                    resolve(capImageUrl);
+                };
+
+                logoImg.src = this.logoData;
+            };
+
+            capImg.onerror = () => {
+                console.error('Failed to load cap image');
+                reject(new Error('Failed to load cap image'));
+            };
+
+            capImg.src = capImageUrl;
+        });
     }
 
     async pollForResult(predictionId) {

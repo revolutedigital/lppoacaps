@@ -24,113 +24,53 @@ if (!REPLICATE_TOKEN) {
 // API PROXY ENDPOINT
 // ========================================
 
-// Create prediction with logo using Flux Redux (image-to-image with style transfer)
+// Generate cap image using SDXL Lightning (fast & cheap)
+// Logo will be composited on frontend using Canvas for pixel-perfect accuracy
 app.post('/api/generate', async (req, res) => {
     try {
-        const { prompt, logoImage } = req.body;
+        const { prompt } = req.body;
 
         if (!prompt) {
             return res.status(400).json({ error: 'Prompt is required' });
         }
 
         console.log('Creating prediction with prompt:', prompt.substring(0, 50) + '...');
-        console.log('Logo image provided:', !!logoImage);
 
-        // Use Flux Redux Dev model for image-guided generation
-        // This model can take a reference image and incorporate it into the generation
-        const modelVersion = logoImage
-            ? "a]lbert/flux-redux-dev:latest" // Flux Redux for logo integration
-            : "5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637"; // SDXL Lightning
+        // Use SDXL Lightning - $0.003/image, fast (~1-2 seconds)
+        const response = await fetch('https://api.replicate.com/v1/predictions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Token ${REPLICATE_TOKEN}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                version: "5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
+                input: {
+                    prompt: prompt,
+                    num_outputs: 1,
+                    aspect_ratio: "1:1",
+                    output_format: "png", // PNG for better quality compositing
+                    output_quality: 90,
+                    num_inference_steps: 4
+                }
+            })
+        });
 
-        let inputParams;
-
-        if (logoImage) {
-            // Using Flux Fill Pro for inpainting/compositing the logo onto cap
-            // Alternative: Use controlnet or IP-adapter approach
-            inputParams = {
-                prompt: prompt,
-                image: logoImage,
-                redux_strength: 0.7,
-                guidance_scale: 3.5,
-                num_inference_steps: 28,
-                output_format: "webp",
-                output_quality: 80,
-                aspect_ratio: "1:1"
-            };
-
-            // Use Flux Redux model
-            const response = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-redux-dev/predictions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Token ${REPLICATE_TOKEN}`,
-                    'Content-Type': 'application/json',
-                    'Prefer': 'wait'
-                },
-                body: JSON.stringify({
-                    input: {
-                        prompt: prompt,
-                        redux_image: logoImage,
-                        guidance: 3,
-                        num_outputs: 1,
-                        aspect_ratio: "1:1",
-                        output_format: "webp",
-                        output_quality: 80,
-                        num_inference_steps: 28
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Replicate API error (Redux):', errorText);
-                // Fallback to simple generation
-                return await generateSimple(prompt, res);
-            }
-
-            const prediction = await response.json();
-            console.log('Redux Prediction created:', prediction.id);
-            return res.json(prediction);
-        } else {
-            return await generateSimple(prompt, res);
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Replicate API error:', errorText);
+            return res.status(response.status).json({ error: 'Failed to create prediction', details: errorText });
         }
+
+        const prediction = await response.json();
+        console.log('Prediction created:', prediction.id);
+        res.json(prediction);
 
     } catch (error) {
         console.error('Server error:', error);
         res.status(500).json({ error: 'Internal server error', message: error.message });
     }
 });
-
-// Simple generation without logo
-async function generateSimple(prompt, res) {
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
-        method: 'POST',
-        headers: {
-            'Authorization': `Token ${REPLICATE_TOKEN}`,
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            version: "5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
-            input: {
-                prompt: prompt,
-                num_outputs: 1,
-                aspect_ratio: "1:1",
-                output_format: "webp",
-                output_quality: 80,
-                num_inference_steps: 4
-            }
-        })
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Replicate API error:', errorText);
-        return res.status(response.status).json({ error: 'Failed to create prediction', details: errorText });
-    }
-
-    const prediction = await response.json();
-    console.log('Simple Prediction created:', prediction.id);
-    return res.json(prediction);
-}
 
 // Poll prediction status
 app.get('/api/prediction/:id', async (req, res) => {
