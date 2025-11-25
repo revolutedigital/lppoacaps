@@ -202,29 +202,18 @@ class AIPreview {
     }
 
     // ========================================
-    // INTEGRAÇÃO DIRETA COM REPLICATE API
-    // Modelo: Flux Schnell (mais barato)
+    // INTEGRAÇÃO VIA BACKEND PROXY
+    // Resolve CORS - chama nosso server.js
     // ========================================
 
     async callReplicateAPI(prompt) {
-        // Step 1: Criar a prediction
-        const createResponse = await fetch('https://api.replicate.com/v1/predictions', {
+        // Step 1: Criar a prediction via nosso backend
+        const createResponse = await fetch('/api/generate', {
             method: 'POST',
             headers: {
-                'Authorization': `Token ${this.REPLICATE_API_TOKEN}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                version: "5599ed30703defd1d160a25a63321b4dec97101d98b4674bcc56e41f62f35637",
-                input: {
-                    prompt: prompt,
-                    num_outputs: 1,
-                    aspect_ratio: "1:1",
-                    output_format: "webp",
-                    output_quality: 80,
-                    num_inference_steps: 4
-                }
-            })
+            body: JSON.stringify({ prompt })
         });
 
         if (!createResponse.ok) {
@@ -234,6 +223,7 @@ class AIPreview {
         }
 
         const prediction = await createResponse.json();
+        console.log('Prediction created:', prediction.id);
 
         // Step 2: Poll até completar
         return await this.pollForResult(prediction.id);
@@ -244,17 +234,14 @@ class AIPreview {
         let attempts = 0;
 
         while (attempts < maxAttempts) {
-            const response = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-                headers: {
-                    'Authorization': `Token ${this.REPLICATE_API_TOKEN}`,
-                }
-            });
-
+            const response = await fetch(`/api/prediction/${predictionId}`);
             const result = await response.json();
 
             if (result.status === 'succeeded') {
+                console.log('Image generated successfully!');
                 return result.output[0]; // URL da imagem
             } else if (result.status === 'failed') {
+                console.error('Generation failed:', result.error);
                 throw new Error('Geração falhou');
             }
 
