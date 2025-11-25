@@ -133,32 +133,28 @@ class AIPreview {
     getOptimizedPrompts() {
         const cap = this.modelDescriptions[this.selectedModel];
 
-        // PROMPTS OTIMIZADOS - Gera boné com área frontal visível para composição de logo
-        // A logo será adicionada via Canvas depois da geração
+        // PROMPTS OTIMIZADOS - Gera boné com frente visível para composição de logo
         return [
             {
                 id: 'result1',
-                context: 'Uso Real',
-                // Prompt 1: Pessoa usando - frente do boné bem visível
-                prompt: `${cap}, plain solid color front panel without any logo or text, worn by young professional, front view showing the cap clearly, outdoor urban setting, natural daylight, lifestyle photography, 8k`
+                context: 'Product Shot',
+                // Prompt principal: Boné de frente, produto isolado - MELHOR para composição
+                prompt: `professional product photo of ${cap}, front facing view, centered in frame, plain front panel without any logo text or graphics, solid color, clean white studio background, soft even lighting, e-commerce product photography style, high resolution, 8k`
             },
             {
                 id: 'result2',
-                context: 'Product Shot',
-                // Prompt 2: Produto com frente visível
-                prompt: `${cap}, plain front panel no logo no text, front view, floating on clean white background, soft studio lighting, product photography, commercial catalog style, 8k`
+                context: 'Lifestyle',
+                prompt: `${cap}, plain front panel no logo, floating on clean white background, front view centered, soft studio lighting, product photography, 8k`
             },
             {
                 id: 'result3',
                 context: 'Close-up',
-                // Prompt 3: Close-up da frente
-                prompt: `${cap}, close-up front view of plain front panel, no logo no text, dramatic side lighting, professional product photo, 8k`
+                prompt: `${cap}, close-up front view, plain front panel, no logo no text, studio lighting, product photo, 8k`
             },
             {
                 id: 'result4',
                 context: 'Display',
-                // Prompt 4: Manequim - frente visível
-                prompt: `${cap}, plain front panel without logo, on mannequin head display, front view, retail store setting, soft ambient lighting, commercial photography, 8k`
+                prompt: `${cap}, plain front panel, on mannequin head, front view, retail display, soft lighting, 8k`
             }
         ];
     }
@@ -240,6 +236,10 @@ class AIPreview {
 
     // Composita a logo do usuário em cima do boné gerado
     async compositeLogoOnCap(capImageUrl) {
+        console.log('Starting logo compositing...');
+        console.log('Cap image URL:', capImageUrl);
+        console.log('Logo data available:', !!this.logoData);
+
         return new Promise((resolve, reject) => {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
@@ -248,6 +248,8 @@ class AIPreview {
             capImg.crossOrigin = 'anonymous';
 
             capImg.onload = () => {
+                console.log('Cap image loaded:', capImg.width, 'x', capImg.height);
+
                 // Configura canvas com tamanho da imagem do boné
                 canvas.width = capImg.width;
                 canvas.height = capImg.height;
@@ -258,57 +260,67 @@ class AIPreview {
                 // Carrega a logo
                 const logoImg = new Image();
                 logoImg.onload = () => {
-                    // Calcula posição e tamanho da logo
-                    // Posiciona no centro-superior (frente do boné)
-                    const logoMaxWidth = canvas.width * 0.25; // 25% da largura
-                    const logoMaxHeight = canvas.height * 0.15; // 15% da altura
+                    console.log('Logo loaded:', logoImg.width, 'x', logoImg.height);
+
+                    // TAMANHO MAIOR para a logo ser bem visível
+                    const logoMaxWidth = canvas.width * 0.35; // 35% da largura
+                    const logoMaxHeight = canvas.height * 0.25; // 25% da altura
 
                     let logoWidth = logoImg.width;
                     let logoHeight = logoImg.height;
 
                     // Redimensiona mantendo proporção
-                    if (logoWidth > logoMaxWidth) {
-                        logoHeight = (logoMaxWidth / logoWidth) * logoHeight;
-                        logoWidth = logoMaxWidth;
-                    }
-                    if (logoHeight > logoMaxHeight) {
-                        logoWidth = (logoMaxHeight / logoHeight) * logoWidth;
-                        logoHeight = logoMaxHeight;
-                    }
+                    const scaleW = logoMaxWidth / logoWidth;
+                    const scaleH = logoMaxHeight / logoHeight;
+                    const scale = Math.min(scaleW, scaleH);
 
-                    // Posição: centro horizontal, 30% do topo (área da frente do boné)
+                    logoWidth = logoWidth * scale;
+                    logoHeight = logoHeight * scale;
+
+                    // Posição: centro da imagem (onde geralmente fica a frente do boné)
                     const logoX = (canvas.width - logoWidth) / 2;
-                    const logoY = canvas.height * 0.30;
+                    const logoY = (canvas.height - logoHeight) / 2 - (canvas.height * 0.05); // Levemente acima do centro
 
-                    // Aplica leve sombra para realismo
-                    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-                    ctx.shadowBlur = 4;
-                    ctx.shadowOffsetX = 2;
-                    ctx.shadowOffsetY = 2;
+                    console.log('Drawing logo at:', logoX, logoY, 'size:', logoWidth, 'x', logoHeight);
+
+                    // Aplica sombra para destacar
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+                    ctx.shadowBlur = 8;
+                    ctx.shadowOffsetX = 3;
+                    ctx.shadowOffsetY = 3;
 
                     // Desenha a logo
                     ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
 
+                    // Remove sombra para próximos desenhos
+                    ctx.shadowColor = 'transparent';
+                    ctx.shadowBlur = 0;
+
+                    console.log('Logo composited successfully!');
+
                     // Retorna como data URL
-                    resolve(canvas.toDataURL('image/png'));
+                    const result = canvas.toDataURL('image/png');
+                    resolve(result);
                 };
 
-                logoImg.onerror = () => {
-                    console.error('Failed to load logo');
-                    // Se falhar, retorna só o boné
-                    resolve(capImageUrl);
+                logoImg.onerror = (err) => {
+                    console.error('Failed to load logo:', err);
+                    // Se falhar, retorna só o boné via proxy
+                    const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(capImageUrl)}`;
+                    resolve(proxyUrl);
                 };
 
                 logoImg.src = this.logoData;
             };
 
-            capImg.onerror = () => {
-                console.error('Failed to load cap image via proxy');
+            capImg.onerror = (err) => {
+                console.error('Failed to load cap image via proxy:', err);
                 reject(new Error('Failed to load cap image'));
             };
 
             // Usa proxy para evitar CORS
             const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(capImageUrl)}`;
+            console.log('Loading cap via proxy:', proxyUrl);
             capImg.src = proxyUrl;
         });
     }
