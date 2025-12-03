@@ -179,6 +179,10 @@
     // META PIXEL EVENTS
     // ========================================
 
+    // Eventos padrão do Meta que aparecem automaticamente no Events Manager:
+    // PageView, Lead, CompleteRegistration, Contact, ViewContent,
+    // AddToCart, InitiateCheckout, Purchase, Search, Subscribe
+
     function trackMetaEvent(eventName, params) {
         if (typeof fbq !== 'undefined') {
             const attribution = getAttribution();
@@ -191,11 +195,8 @@
                 utm_campaign: attribution.last_touch.utm_campaign
             };
 
-            if (eventName === 'Lead' || eventName === 'Purchase' || eventName === 'InitiateCheckout') {
-                fbq('track', eventName, enrichedParams);
-            } else {
-                fbq('trackCustom', eventName, enrichedParams);
-            }
+            // Usar sempre fbq('track') para eventos padrão aparecerem no Events Manager
+            fbq('track', eventName, enrichedParams);
             log('Meta Event:', { event: eventName, params: enrichedParams });
         }
     }
@@ -345,23 +346,18 @@
                     depth_pixels: window.scrollY
                 });
 
-                trackMetaEvent('ScrollDepth', {
-                    depth: milestone + '%',
-                    page_height: document.documentElement.scrollHeight
-                });
-
                 trackGoogleEvent('scroll', {
                     event_category: 'Engagement',
                     event_label: milestone + '%',
                     value: parseInt(milestone)
                 });
 
-                // Milestone importante - usuário engajado
-                if (milestone === '50') {
-                    trackMetaEvent('EngagedUser', { type: 'scroll_50' });
-                }
+                // Scroll 90% = usuário com alta intenção - dispara Search (evento padrão Meta)
                 if (milestone === '90') {
-                    trackMetaEvent('HighIntent', { type: 'scroll_90' });
+                    trackMetaEvent('Search', {
+                        search_string: 'high_intent_scroll',
+                        content_category: 'engagement'
+                    });
                 }
             }
         });
@@ -384,24 +380,18 @@
                     duration_ms: threshold.time
                 });
 
-                trackMetaEvent('TimeOnPage', {
-                    duration: threshold.label,
-                    engaged: threshold.time >= 30000
-                });
-
                 trackGoogleEvent('timing_complete', {
                     event_category: 'Engagement',
                     event_label: threshold.label,
                     value: threshold.time / 1000
                 });
 
-                // Marca usuário como engajado após 30s
-                if (threshold.time === 30000) {
-                    trackMetaEvent('EngagedUser', { type: 'time_30s' });
-                }
-                // Alta intenção após 2min
-                if (threshold.time === 120000) {
-                    trackMetaEvent('HighIntent', { type: 'time_2min' });
+                // 60s na página = usuário engajado - dispara AddToWishlist (evento padrão Meta)
+                if (threshold.time === 60000) {
+                    trackMetaEvent('AddToWishlist', {
+                        content_name: 'engaged_user_60s',
+                        content_category: 'engagement'
+                    });
                 }
             }, threshold.time);
         });
@@ -420,11 +410,6 @@
         pushToDataLayer('exit_intent', {
             scroll_depth: Math.round((window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100),
             time_on_page: Math.round((Date.now() - pageLoadTime) / 1000)
-        });
-
-        trackMetaEvent('ExitIntent', {
-            scroll_reached: Object.keys(scrollMilestones).filter(k => scrollMilestones[k]).pop() || '0',
-            sections_viewed: Object.keys(microConversions).filter(k => microConversions[k]).length
         });
 
         trackGoogleEvent('exit_intent', {
