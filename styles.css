@@ -2367,4 +2367,39 @@ textarea.form-control {
         max-width: 100vw;
         overflow-x: hidden;
     }
+
+    /* Fix calculadora mobile */
+    .calculator {
+        padding: var(--spacing-md);
+        gap: var(--spacing-md);
+    }
+
+    .calculator__form,
+    .calculator__result {
+        padding: var(--spacing-md);
+    }
+
+    .btn,
+    .btn--primary,
+    .btn--large {
+        width: 100%;
+        max-width: 100%;
+        padding: 0.875rem 1rem;
+        font-size: 0.95rem;
+        box-sizing: border-box;
+    }
+
+    .form-control,
+    select.form-control,
+    input.form-control {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
+    .result__price,
+    .result__details {
+        max-width: 100%;
+        word-wrap: break-word;
+    }
 }
