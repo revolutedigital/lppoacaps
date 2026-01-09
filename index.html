@@ -481,26 +481,27 @@
                 <div class="calculator" data-aos="fade-up" data-aos-delay="200">
                     <div class="calculator__form">
                         <div class="form-group">
-                            <label for="calcModelo">Modelo do Boné</label>
+                            <label for="calcModelo">Escolha o Modelo</label>
                             <select id="calcModelo" class="form-control">
-                                <option value="trucker">Trucker (a partir de R$ 44,90)</option>
-                                <option value="americano">Americano (a partir de R$ 59,90)</option>
-                                <option value="camurca">Camurça (a partir de R$ 80,00)</option>
+                                <optgroup label="🚀 Express - Pronto + Sua Arte (Sem Mínimo)">
+                                    <option value="trucker">Trucker (R$ 60 - R$ 45/un)</option>
+                                    <option value="americano">Americano (R$ 60 - R$ 45/un)</option>
+                                    <option value="camurca">Americano Camurça (R$ 70 - R$ 55/un)</option>
+                                </optgroup>
+                                <optgroup label="⭐ Premium - 100% Personalizado (Mín 30 un)">
+                                    <option value="fivepanel">Five Panel (R$ 34,90 - R$ 26,90/un)</option>
+                                    <option value="dadhat">Dad Hat (R$ 36,90 - R$ 28,90/un)</option>
+                                    <option value="seisgomos">Seis Gomos (R$ 36,90 - R$ 28,90/un)</option>
+                                    <option value="furoalaser">Furo a Laser (R$ 36,90 - R$ 28,90/un)</option>
+                                </optgroup>
                             </select>
+                            <small class="form-hint" id="modalidadeHint">Sem pedido mínimo</small>
                         </div>
 
                         <div class="form-group">
                             <label for="calcQuantidade">Quantidade</label>
                             <input type="number" id="calcQuantidade" class="form-control" value="1" min="1" max="1000">
-                            <small class="form-hint">Modalidade Premium: mínimo 30 unidades iguais</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="calcModalidade">Modalidade</label>
-                            <select id="calcModalidade" class="form-control">
-                                <option value="express">Express (design pronto + sua arte)</option>
-                                <option value="premium">Premium (100% personalizado - 30+ un)</option>
-                            </select>
+                            <small class="form-hint" id="quantidadeHint">Digite a quantidade desejada</small>
                         </div>
 
                         <button type="button" id="btnCalcular" class="btn btn--primary btn--large btn--full">

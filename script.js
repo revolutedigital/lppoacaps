@@ -87,9 +87,10 @@ class PriceCalculator {
     constructor() {
         this.modeloSelect = document.getElementById('calcModelo');
         this.quantidadeInput = document.getElementById('calcQuantidade');
-        this.modalidadeSelect = document.getElementById('calcModalidade');
         this.btnCalcular = document.getElementById('btnCalcular');
         this.resultDiv = document.getElementById('calculatorResult');
+        this.modalidadeHint = document.getElementById('modalidadeHint');
+        this.quantidadeHint = document.getElementById('quantidadeHint');
 
         // Pricing data based on POA Caps real prices WITH personalization
         this.prices = {
@@ -105,6 +106,10 @@ class PriceCalculator {
             furoalaser: { premium30: 36.90, premium50: 31.90, premium100: 28.90 }
         };
 
+        // Model categories
+        this.expressModels = ['trucker', 'americano', 'camurca'];
+        this.premiumModels = ['fivepanel', 'dadhat', 'seisgomos', 'furoalaser'];
+
         this.init();
     }
 
@@ -112,73 +117,61 @@ class PriceCalculator {
         if (this.btnCalcular) {
             this.btnCalcular.addEventListener('click', () => this.calculate());
 
-            // Update models when modalidade changes
-            this.modalidadeSelect.addEventListener('change', () => {
-                this.updateModelsForModalidade();
-                this.updateQuantityForModalidade();
+            // Update quantity when modelo changes
+            this.modeloSelect.addEventListener('change', () => {
+                this.updateForSelectedModel();
             });
 
-            // Also calculate on input change
-            this.quantidadeInput.addEventListener('input', () => this.updateModalidadeHint());
+            // Validate quantity on input
+            this.quantidadeInput.addEventListener('input', () => {
+                this.validateQuantity();
+            });
         }
     }
 
-    updateModelsForModalidade() {
-        const modalidade = this.modalidadeSelect.value;
+    updateForSelectedModel() {
+        const modelo = this.modeloSelect.value;
+        const isPremium = this.premiumModels.includes(modelo);
 
-        if (modalidade === 'premium') {
-            // Mostrar apenas modelos Premium
-            this.modeloSelect.innerHTML = `
-                <optgroup label="⭐ Modalidade Premium (100% personalizado - Mín 30 un)">
-                    <option value="fivepanel">Five Panel (R$ 34,90 - R$ 26,90/un)</option>
-                    <option value="dadhat">Dad Hat (R$ 36,90 - R$ 28,90/un)</option>
-                    <option value="seisgomos">Seis Gomos (R$ 36,90 - R$ 28,90/un)</option>
-                    <option value="furoalaser">Furo a Laser (R$ 36,90 - R$ 28,90/un)</option>
-                </optgroup>
-            `;
-        } else {
-            // Mostrar apenas modelos Express
-            this.modeloSelect.innerHTML = `
-                <optgroup label="🚀 Modalidade Express (Bonés prontos + sua arte)">
-                    <option value="trucker">Trucker (R$ 60 - R$ 45/un)</option>
-                    <option value="americano">Americano (R$ 60 - R$ 45/un)</option>
-                    <option value="camurca">Americano Camurça (R$ 70 - R$ 55/un)</option>
-                </optgroup>
-            `;
-        }
-    }
-
-    updateQuantityForModalidade() {
-        const modalidade = this.modalidadeSelect.value;
-
-        if (modalidade === 'premium') {
-            // Ajustar para mínimo 30
+        if (isPremium) {
+            // Premium model selected
             const currentQty = parseInt(this.quantidadeInput.value) || 1;
             if (currentQty < 30) {
                 this.quantidadeInput.value = 30;
-                this.showNotification('Quantidade ajustada para o mínimo de 30 unidades (Premium)', 'info');
             }
             this.quantidadeInput.min = 30;
+            this.modalidadeHint.textContent = '⭐ Premium - 100% personalizado do zero';
+            this.quantidadeHint.textContent = 'Mínimo 30 unidades';
         } else {
-            // Express não tem mínimo
+            // Express model selected
             this.quantidadeInput.min = 1;
+            this.modalidadeHint.textContent = '🚀 Express - Boné pronto + sua arte';
+            this.quantidadeHint.textContent = 'Sem pedido mínimo';
         }
     }
 
-    updateModalidadeHint() {
+    validateQuantity() {
+        const modelo = this.modeloSelect.value;
         const quantidade = parseInt(this.quantidadeInput.value) || 1;
-        const modalidade = this.modalidadeSelect.value;
+        const isPremium = this.premiumModels.includes(modelo);
 
-        if (modalidade === 'premium' && quantidade < 30) {
+        if (isPremium && quantidade < 30) {
             this.quantidadeInput.value = 30;
-            this.showNotification('Modalidade Premium requer mínimo de 30 unidades', 'warning');
+            this.quantidadeHint.textContent = 'Mínimo 30 unidades para Premium';
+            this.quantidadeHint.style.color = '#ff6b6b';
+            setTimeout(() => {
+                this.quantidadeHint.style.color = '';
+                this.quantidadeHint.textContent = 'Mínimo 30 unidades';
+            }, 2000);
         }
     }
 
     calculate() {
         const modelo = this.modeloSelect.value;
         const quantidade = parseInt(this.quantidadeInput.value) || 1;
-        const modalidade = this.modalidadeSelect.value;
+
+        // Auto-detect modalidade based on model
+        const modalidade = this.premiumModels.includes(modelo) ? 'premium' : 'express';
 
         // Validation
         if (quantidade < 1) {
@@ -195,16 +188,7 @@ class PriceCalculator {
         let pricePerUnit;
         const modelPrices = this.prices[modelo];
 
-        // Check if model is available in selected modalidade
-        const expressModels = ['trucker', 'americano', 'camurca'];
-        const premiumModels = ['fivepanel', 'dadhat', 'seisgomos', 'furoalaser'];
-
         if (modalidade === 'express') {
-            if (!expressModels.includes(modelo)) {
-                this.showNotification('Este modelo está disponível apenas na modalidade Premium', 'error');
-                return;
-            }
-
             // Express pricing with personalization
             if (quantidade >= 50) {
                 pricePerUnit = modelPrices.premium50;
