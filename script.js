@@ -91,11 +91,18 @@ class PriceCalculator {
         this.btnCalcular = document.getElementById('btnCalcular');
         this.resultDiv = document.getElementById('calculatorResult');
 
-        // Pricing data based on POA Caps real prices
+        // Pricing data based on POA Caps real prices WITH personalization
         this.prices = {
-            trucker: { base: 44.90, premium30: 34.90, premium50: 29.90, premium100: 26.90 },
-            americano: { base: 59.90, premium30: 39.90, premium50: 34.90, premium100: 31.90 },
-            camurca: { base: 80.00, premium30: 50.00, premium50: 45.00, premium100: 40.00 }
+            // Express models (ready caps with transfer HD)
+            trucker: { base: 60.00, premium1: 60.00, premium5: 55.00, premium10: 50.00, premium30: 45.00, premium50: 45.00 },
+            americano: { base: 60.00, premium1: 60.00, premium5: 55.00, premium10: 50.00, premium30: 45.00, premium50: 45.00 },
+            camurca: { base: 70.00, premium1: 70.00, premium5: 65.00, premium10: 60.00, premium30: 55.00, premium50: 55.00 },
+
+            // Premium models (fully custom from scratch - min 30 units)
+            fivepanel: { premium30: 34.90, premium50: 29.90, premium100: 26.90 },
+            dadhat: { premium30: 36.90, premium50: 31.90, premium100: 28.90 },
+            seisgomos: { premium30: 36.90, premium50: 31.90, premium100: 28.90 },
+            furoalaser: { premium30: 36.90, premium50: 31.90, premium100: 28.90 }
         };
 
         this.init();
@@ -105,9 +112,56 @@ class PriceCalculator {
         if (this.btnCalcular) {
             this.btnCalcular.addEventListener('click', () => this.calculate());
 
+            // Update models when modalidade changes
+            this.modalidadeSelect.addEventListener('change', () => {
+                this.updateModelsForModalidade();
+                this.updateQuantityForModalidade();
+            });
+
             // Also calculate on input change
             this.quantidadeInput.addEventListener('input', () => this.updateModalidadeHint());
-            this.modalidadeSelect.addEventListener('change', () => this.updateModalidadeHint());
+        }
+    }
+
+    updateModelsForModalidade() {
+        const modalidade = this.modalidadeSelect.value;
+
+        if (modalidade === 'premium') {
+            // Mostrar apenas modelos Premium
+            this.modeloSelect.innerHTML = `
+                <optgroup label="⭐ Modalidade Premium (100% personalizado - Mín 30 un)">
+                    <option value="fivepanel">Five Panel (R$ 34,90 - R$ 26,90/un)</option>
+                    <option value="dadhat">Dad Hat (R$ 36,90 - R$ 28,90/un)</option>
+                    <option value="seisgomos">Seis Gomos (R$ 36,90 - R$ 28,90/un)</option>
+                    <option value="furoalaser">Furo a Laser (R$ 36,90 - R$ 28,90/un)</option>
+                </optgroup>
+            `;
+        } else {
+            // Mostrar apenas modelos Express
+            this.modeloSelect.innerHTML = `
+                <optgroup label="🚀 Modalidade Express (Bonés prontos + sua arte)">
+                    <option value="trucker">Trucker (R$ 60 - R$ 45/un)</option>
+                    <option value="americano">Americano (R$ 60 - R$ 45/un)</option>
+                    <option value="camurca">Americano Camurça (R$ 70 - R$ 55/un)</option>
+                </optgroup>
+            `;
+        }
+    }
+
+    updateQuantityForModalidade() {
+        const modalidade = this.modalidadeSelect.value;
+
+        if (modalidade === 'premium') {
+            // Ajustar para mínimo 30
+            const currentQty = parseInt(this.quantidadeInput.value) || 1;
+            if (currentQty < 30) {
+                this.quantidadeInput.value = 30;
+                this.showNotification('Quantidade ajustada para o mínimo de 30 unidades (Premium)', 'info');
+            }
+            this.quantidadeInput.min = 30;
+        } else {
+            // Express não tem mínimo
+            this.quantidadeInput.min = 1;
         }
     }
 
@@ -116,6 +170,7 @@ class PriceCalculator {
         const modalidade = this.modalidadeSelect.value;
 
         if (modalidade === 'premium' && quantidade < 30) {
+            this.quantidadeInput.value = 30;
             this.showNotification('Modalidade Premium requer mínimo de 30 unidades', 'warning');
         }
     }
@@ -140,10 +195,30 @@ class PriceCalculator {
         let pricePerUnit;
         const modelPrices = this.prices[modelo];
 
+        // Check if model is available in selected modalidade
+        const expressModels = ['trucker', 'americano', 'camurca'];
+        const premiumModels = ['fivepanel', 'dadhat', 'seisgomos', 'furoalaser'];
+
         if (modalidade === 'express') {
-            pricePerUnit = modelPrices.base;
+            if (!expressModels.includes(modelo)) {
+                this.showNotification('Este modelo está disponível apenas na modalidade Premium', 'error');
+                return;
+            }
+
+            // Express pricing with personalization
+            if (quantidade >= 50) {
+                pricePerUnit = modelPrices.premium50;
+            } else if (quantidade >= 30) {
+                pricePerUnit = modelPrices.premium30;
+            } else if (quantidade >= 10) {
+                pricePerUnit = modelPrices.premium10;
+            } else if (quantidade >= 5) {
+                pricePerUnit = modelPrices.premium5;
+            } else {
+                pricePerUnit = modelPrices.base;
+            }
         } else {
-            // Premium pricing
+            // Premium pricing (min 30 units, fully custom)
             if (quantidade >= 100) {
                 pricePerUnit = modelPrices.premium100;
             } else if (quantidade >= 50) {
@@ -173,9 +248,15 @@ class PriceCalculator {
 
         // Model name
         const modeloNames = {
+            // Express models
             'trucker': 'Trucker',
             'americano': 'Americano',
-            'camurca': 'Camurça'
+            'camurca': 'Americano Camurça',
+            // Premium models
+            'fivepanel': 'Five Panel',
+            'dadhat': 'Dad Hat',
+            'seisgomos': 'Seis Gomos',
+            'furoalaser': 'Furo a Laser'
         };
         detailModelo.textContent = modeloNames[modelo];
 
