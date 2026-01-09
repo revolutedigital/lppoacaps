@@ -117,52 +117,27 @@ class PriceCalculator {
         if (this.btnCalcular) {
             this.btnCalcular.addEventListener('click', () => this.calculate());
 
-            // Update quantity when modelo changes
+            // Update hints when modelo changes
             this.modeloSelect.addEventListener('change', () => {
-                this.updateForSelectedModel();
-            });
-
-            // Validate quantity on input
-            this.quantidadeInput.addEventListener('input', () => {
-                this.validateQuantity();
+                this.updateHintsForSelectedModel();
             });
         }
     }
 
-    updateForSelectedModel() {
+    updateHintsForSelectedModel() {
         const modelo = this.modeloSelect.value;
         const isPremium = this.premiumModels.includes(modelo);
 
         if (isPremium) {
             // Premium model selected
-            const currentQty = parseInt(this.quantidadeInput.value) || 1;
-            if (currentQty < 30) {
-                this.quantidadeInput.value = 30;
-            }
-            this.quantidadeInput.min = 30;
             this.modalidadeHint.textContent = '⭐ Premium - 100% personalizado do zero';
             this.quantidadeHint.textContent = 'Mínimo 30 unidades';
+            this.quantidadeHint.style.color = '#ff6b6b';
         } else {
             // Express model selected
-            this.quantidadeInput.min = 1;
             this.modalidadeHint.textContent = '🚀 Express - Boné pronto + sua arte';
             this.quantidadeHint.textContent = 'Sem pedido mínimo';
-        }
-    }
-
-    validateQuantity() {
-        const modelo = this.modeloSelect.value;
-        const quantidade = parseInt(this.quantidadeInput.value) || 1;
-        const isPremium = this.premiumModels.includes(modelo);
-
-        if (isPremium && quantidade < 30) {
-            this.quantidadeInput.value = 30;
-            this.quantidadeHint.textContent = 'Mínimo 30 unidades para Premium';
-            this.quantidadeHint.style.color = '#ff6b6b';
-            setTimeout(() => {
-                this.quantidadeHint.style.color = '';
-                this.quantidadeHint.textContent = 'Mínimo 30 unidades';
-            }, 2000);
+            this.quantidadeHint.style.color = '';
         }
     }
 
